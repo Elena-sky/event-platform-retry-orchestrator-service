@@ -1,6 +1,9 @@
-# Local / container run for this service only. Start broker first:
-#   cd event-platform-infra && docker compose up -d
-# Requires ``.env`` (copy from ``.env.example``). Compose overrides broker host for Docker DNS.
+# Runs only retry-orchestrator on the external Docker network shared with ``event-platform-infra``.
+#
+# Prerequisites: broker already up (``cd event-platform-infra && docker compose up -d``).
+# Start this before ``event-platform-notification-service`` so ``retry.exchange`` topology exists.
+#
+# Requires ``.env`` (copy from ``.env.example``). Compose sets ``RABBITMQ_HOST=rabbitmq``.
 
 services:
   retry-orchestrator:
