@@ -1,0 +1,9 @@
+.env
+.ruff_cache
+.pytest_cache
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.idea/
