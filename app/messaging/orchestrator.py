@@ -9,6 +9,7 @@ from aio_pika.abc import AbstractRobustChannel, AbstractRobustExchange
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.messaging.amqp_retry import connect_robust_when_ready
 from app.services.retry_logic import calculate_delay_ms
 
 logger = get_logger(__name__)
@@ -51,7 +52,10 @@ class RetryOrchestrator:
         self._dlq_exchange: AbstractRobustExchange | None = None
 
     async def run(self) -> None:
-        self._connection = await aio_pika.connect_robust(settings.rabbitmq_url)
+        self._connection = await connect_robust_when_ready(
+            settings.rabbitmq_url,
+            logger=logger,
+        )
         self._channel = await self._connection.channel()
         await self._channel.set_qos(prefetch_count=settings.rabbitmq_prefetch)
 
