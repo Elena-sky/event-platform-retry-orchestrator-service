@@ -14,6 +14,8 @@ from app.services.retry_logic import calculate_delay_ms
 
 logger = get_logger(__name__)
 
+QUORUM_QUEUE_ARGS: dict[str, str] = {"x-queue-type": "quorum"}
+
 
 def _exchange_type_from_settings(name: str) -> ExchangeType:
     key = name.lower().strip()
@@ -74,6 +76,7 @@ class RetryOrchestrator:
         retry_queue = await self._channel.declare_queue(
             settings.retry_queue,
             durable=True,
+            arguments=QUORUM_QUEUE_ARGS,
         )
         await retry_queue.bind(
             self._retry_exchange,
@@ -91,6 +94,7 @@ class RetryOrchestrator:
             durable=True,
             arguments={
                 "x-dead-letter-exchange": settings.events_exchange,
+                **QUORUM_QUEUE_ARGS,
             },
         )
         await delay_queue.bind(self._delay_exchange, routing_key="#")
@@ -104,6 +108,7 @@ class RetryOrchestrator:
         dlq_queue = await self._channel.declare_queue(
             settings.dlq_queue,
             durable=True,
+            arguments=QUORUM_QUEUE_ARGS,
         )
         await dlq_queue.bind(
             self._dlq_exchange,

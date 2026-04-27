@@ -6,27 +6,32 @@ Work together with **[event-platform-notification-service](../event-platform-not
 
 ## Flow
 
+**Retry loop (read left → right, then the loop back):** notification **publishes to `retry.exchange`** (routing key `retry.notification`); the orchestrator consumes **`retry.orchestrator`** (**quorum**), schedules delay via **`retry.delay.topic` → `retry.delay.buffer`** (**quorum**, per-message `expiration`, DLX back to `events.topic`), then the **original consumer** sees the replay. Exhausted retries go to **`notification.email.dlq`** (**quorum**).
+
+```mermaid
+flowchart LR
+    N1["notification\ntemp failure"] -->|publish + headers| RX1["retry.exchange\n→ retry.orchestrator"]
+    RX1 --> O1["orchestrator\nretry.delay.buffer\nDLX → events.topic"]
+    O1 -->|replay| T1["events.topic"]
+    T1 -->|same routing| N2["notification\nre-delivery"]
+    O1 -->|exhausted| L1["notification.email.dlq"]
+```
+
 ```mermaid
 flowchart TD
     NS(["notification-service\nTemporaryNotificationError"])
     NS -->|"x-retry-count, x-original-routing-key"| RX["retry.exchange"]
-    RX --> RI["retry.ingress queue"]
+    RX --> RI["retry.orchestrator\nquorum"]
 
     RI --> CHK{"x-retry-count\n<= MAX_RETRIES?"}
 
-    CHK -->|yes — increment count\ncalculate tier| DQ
+    CHK -->|yes — tiered delay ms\non publish| RDT["retry.delay.topic"]
+    RDT --> BUF["retry.delay.buffer\nquorum\nDLX → events.topic"]
 
-    subgraph DQ["Delay queues  (x-message-ttl + DLX → events.topic)"]
-        D1["delay-5s\nattempt 1"]
-        D2["delay-30s\nattempt 2"]
-        D3["delay-120s\nattempt 3"]
-        D4["delay-600s\nattempt 4"]
-    end
+    BUF -->|TTL / expiration expired| ET(["events.topic"])
+    ET -->|x-original-routing-key| NS2(["notification-service\nnext attempt"])
 
-    DQ -->|TTL expired\ndead-letter exchange| ET(["events.topic"])
-    ET -->|re-routed via x-original-routing-key| NS2(["notification-service\nnext attempt"])
-
-    CHK -->|no — retries exhausted| DLQ(["events.dlq"])
+    CHK -->|no — retries exhausted| DLQ(["notification.email.dlq\nquorum"])
 ```
 
 ```mermaid
